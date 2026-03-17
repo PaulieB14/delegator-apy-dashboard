@@ -1,36 +1,84 @@
 import { useState, useEffect, useMemo } from "react";
-import { fetchIndexerList, type IndexerSummary } from "../utils/subgraph";
+import {
+  fetchIndexerList,
+  fetchAllClosedAllocations,
+  type IndexerSummary,
+} from "../utils/subgraph";
 import { resolveEnsNames } from "../utils/ens";
-import { weiToGrt, formatGrt, ppmToPercent, formatPct } from "../utils/calculations";
+import {
+  weiToGrt,
+  formatGrt,
+  ppmToPercent,
+  formatPct,
+  calculateBulkApy,
+  type IndexerApyData,
+} from "../utils/calculations";
 
 interface Props {
   onSelect: (address: string) => void;
   selectedId: string | null;
 }
 
+type SortCol = "delegated" | "cut" | "alloc" | "apy30" | "apy60" | "apy90";
+
 export function IndexerList({ onSelect, selectedId }: Props) {
   const [indexers, setIndexers] = useState<IndexerSummary[]>([]);
   const [ensNames, setEnsNames] = useState<Map<string, string>>(new Map());
+  const [apyData, setApyData] = useState<Map<string, IndexerApyData>>(new Map());
   const [search, setSearch] = useState("");
   const [listLoading, setListLoading] = useState(true);
+  const [apyLoading, setApyLoading] = useState(false);
   const [ensLoading, setEnsLoading] = useState(false);
-  const [sortBy, setSortBy] = useState<"delegated" | "cut" | "alloc">("delegated");
+  const [sortBy, setSortBy] = useState<SortCol>("apy30");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
-    fetchIndexerList()
-      .then((list) => {
+    let cancelled = false;
+
+    async function loadData() {
+      try {
+        // Step 1: Load indexer list
+        const list = await fetchIndexerList();
+        if (cancelled) return;
         setIndexers(list);
         setListLoading(false);
+
+        // Step 2: Load bulk allocations for APY (in parallel with ENS)
+        setApyLoading(true);
         setEnsLoading(true);
-        resolveEnsNames(list.map((i) => i.id))
-          .then((names) => {
-            setEnsNames(names);
-            setEnsLoading(false);
-          })
-          .catch(() => setEnsLoading(false));
-      })
-      .catch(() => setListLoading(false));
+
+        const now = Math.floor(Date.now() / 1000);
+        const since90 = now - 90 * 86400;
+
+        const delegatedMap = new Map<string, number>();
+        for (const idx of list) {
+          delegatedMap.set(idx.id.toLowerCase(), weiToGrt(idx.delegatedTokens));
+        }
+
+        const [allocs, names] = await Promise.all([
+          fetchAllClosedAllocations(since90),
+          resolveEnsNames(list.map((i) => i.id)),
+        ]);
+
+        if (cancelled) return;
+
+        const apy = calculateBulkApy(allocs, delegatedMap, now);
+        setApyData(apy);
+        setApyLoading(false);
+
+        setEnsNames(names);
+        setEnsLoading(false);
+      } catch {
+        if (!cancelled) {
+          setListLoading(false);
+          setApyLoading(false);
+          setEnsLoading(false);
+        }
+      }
+    }
+
+    loadData();
+    return () => { cancelled = true; };
   }, []);
 
   const filtered = useMemo(() => {
@@ -45,6 +93,9 @@ export function IndexerList({ onSelect, selectedId }: Props) {
 
     return [...list].sort((a, b) => {
       let diff = 0;
+      const aApy = apyData.get(a.id.toLowerCase());
+      const bApy = apyData.get(b.id.toLowerCase());
+
       switch (sortBy) {
         case "delegated":
           diff = Number(BigInt(a.delegatedTokens) - BigInt(b.delegatedTokens));
@@ -55,12 +106,21 @@ export function IndexerList({ onSelect, selectedId }: Props) {
         case "alloc":
           diff = a.allocationCount - b.allocationCount;
           break;
+        case "apy30":
+          diff = (aApy?.apy30 || 0) - (bApy?.apy30 || 0);
+          break;
+        case "apy60":
+          diff = (aApy?.apy60 || 0) - (bApy?.apy60 || 0);
+          break;
+        case "apy90":
+          diff = (aApy?.apy90 || 0) - (bApy?.apy90 || 0);
+          break;
       }
       return sortDir === "desc" ? -diff : diff;
     });
-  }, [indexers, ensNames, search, sortBy, sortDir]);
+  }, [indexers, ensNames, apyData, search, sortBy, sortDir]);
 
-  const handleSort = (col: "delegated" | "cut" | "alloc") => {
+  const handleSort = (col: SortCol) => {
     if (sortBy === col) {
       setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     } else {
@@ -98,6 +158,7 @@ export function IndexerList({ onSelect, selectedId }: Props) {
             className="list-search"
           />
           {ensLoading && <span className="ens-badge">resolving ENS...</span>}
+          {apyLoading && <span className="ens-badge apy-badge">calculating APY...</span>}
         </div>
         <span className="list-count">{filtered.length} indexers</span>
       </div>
@@ -112,10 +173,19 @@ export function IndexerList({ onSelect, selectedId }: Props) {
                 Delegated{sortIcon("delegated")}
               </th>
               <th className="list-th-sortable" onClick={() => handleSort("cut")}>
-                Reward Cut{sortIcon("cut")}
+                Cut{sortIcon("cut")}
               </th>
-              <th className="list-th-sortable" onClick={() => handleSort("alloc")}>
-                Allocations{sortIcon("alloc")}
+              <th className="list-th-sortable list-th-apy" onClick={() => handleSort("apy30")}>
+                30d APY{sortIcon("apy30")}
+              </th>
+              <th className="list-th-sortable list-th-apy" onClick={() => handleSort("apy60")}>
+                60d APY{sortIcon("apy60")}
+              </th>
+              <th className="list-th-sortable list-th-apy" onClick={() => handleSort("apy90")}>
+                90d APY{sortIcon("apy90")}
+              </th>
+              <th className="list-th-sortable hide-mobile" onClick={() => handleSort("alloc")}>
+                Alloc{sortIcon("alloc")}
               </th>
               <th className="list-th-action"></th>
             </tr>
@@ -125,6 +195,7 @@ export function IndexerList({ onSelect, selectedId }: Props) {
               const name = ensNames.get(indexer.id.toLowerCase());
               const delegated = weiToGrt(indexer.delegatedTokens);
               const cut = ppmToPercent(indexer.indexingRewardCut);
+              const apy = apyData.get(indexer.id.toLowerCase());
               const isSelected = selectedId === indexer.id;
 
               return (
@@ -144,13 +215,40 @@ export function IndexerList({ onSelect, selectedId }: Props) {
                       </span>
                     )}
                   </td>
-                  <td className="list-td-num">{formatGrt(delegated)} GRT</td>
+                  <td className="list-td-num">{formatGrt(delegated)}</td>
                   <td className="list-td-num">
                     <span className={cut >= 100 ? "cut-high" : cut >= 50 ? "cut-med" : "cut-low"}>
                       {formatPct(cut)}
                     </span>
                   </td>
-                  <td className="list-td-num">{indexer.allocationCount}</td>
+                  <td className="list-td-apy">
+                    {apyLoading ? (
+                      <span className="apy-placeholder">...</span>
+                    ) : apy ? (
+                      <span className="apy-cell">{formatPct(apy.apy30)}</span>
+                    ) : (
+                      <span className="apy-placeholder">-</span>
+                    )}
+                  </td>
+                  <td className="list-td-apy">
+                    {apyLoading ? (
+                      <span className="apy-placeholder">...</span>
+                    ) : apy ? (
+                      <span className="apy-cell">{formatPct(apy.apy60)}</span>
+                    ) : (
+                      <span className="apy-placeholder">-</span>
+                    )}
+                  </td>
+                  <td className="list-td-apy">
+                    {apyLoading ? (
+                      <span className="apy-placeholder">...</span>
+                    ) : apy ? (
+                      <span className="apy-cell">{formatPct(apy.apy90)}</span>
+                    ) : (
+                      <span className="apy-placeholder">-</span>
+                    )}
+                  </td>
+                  <td className="list-td-num hide-mobile">{indexer.allocationCount}</td>
                   <td className="list-td-action">
                     <span className="list-arrow">&#8250;</span>
                   </td>
@@ -159,6 +257,11 @@ export function IndexerList({ onSelect, selectedId }: Props) {
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="list-footer">
+        APY calculated from actual delegator rewards on closed allocations.
+        Uses current delegation as denominator — may differ if delegation changed significantly during the period.
       </div>
     </div>
   );

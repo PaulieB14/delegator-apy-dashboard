@@ -44,6 +44,7 @@ export function useIndexerData() {
 
       indexer.ensName = ensNames.get(address.toLowerCase());
 
+      // Fetch allocations for the detail view APY breakdown
       const now = Math.floor(Date.now() / 1000);
       const sinceTimestamp = now - 90 * 86400;
 

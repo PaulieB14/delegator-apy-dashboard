@@ -65,10 +65,11 @@ function App() {
               </section>
               <IndexerOverview data={data} />
               <ApyTable windows={data.windows} delegatedGrt={data.delegatedGrt} />
-              <AllocationsList windows={data.windows} />
+              <AllocationsList indexerAddress={data.indexer.id} />
               <footer className="app-footer">
                 Data sourced from closed allocations on the Graph Network Arbitrum subgraph.
-                Delegator rewards shown are post-cut (already reflect the indexer's reward cut).
+                Delegator rewards are post-cut. APY uses current delegation as denominator —
+                if delegation changed significantly, actual returns per delegator may vary.
               </footer>
             </>
           )}

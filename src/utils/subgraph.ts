@@ -60,6 +60,14 @@ export interface AllocationData {
   };
 }
 
+// Lightweight allocation for bulk APY calculation (no deployment details)
+export interface AllocationSummary {
+  id: string;
+  indexer: { id: string };
+  indexingDelegatorRewards: string;
+  closedAt: number;
+}
+
 export async function fetchIndexerList(): Promise<IndexerSummary[]> {
   const allIndexers: IndexerSummary[] = [];
   let skip = 0;
@@ -85,10 +93,47 @@ export async function fetchIndexerList(): Promise<IndexerSummary[]> {
     allIndexers.push(...indexers);
     if (indexers.length < 100) break;
     skip += 100;
-    if (skip >= 500) break; // cap at top 500
+    if (skip >= 500) break;
   }
 
   return allIndexers;
+}
+
+// Bulk fetch ALL closed allocations in the last 90 days across all indexers
+// Returns only the fields needed for APY calculation
+export async function fetchAllClosedAllocations(
+  sinceTimestamp: number
+): Promise<AllocationSummary[]> {
+  const all: AllocationSummary[] = [];
+  let lastId = "";
+
+  while (true) {
+    const { allocations } = await querySubgraph<{
+      allocations: AllocationSummary[];
+    }>(`{
+      allocations(
+        where: {
+          status: Closed
+          closedAt_gte: ${sinceTimestamp}
+          id_gt: "${lastId}"
+        }
+        orderBy: id
+        orderDirection: asc
+        first: 1000
+      ) {
+        id
+        indexer { id }
+        indexingDelegatorRewards
+        closedAt
+      }
+    }`);
+
+    all.push(...allocations);
+    if (allocations.length < 1000) break;
+    lastId = allocations[allocations.length - 1].id;
+  }
+
+  return all;
 }
 
 export async function fetchIndexer(address: string): Promise<IndexerData | null> {
