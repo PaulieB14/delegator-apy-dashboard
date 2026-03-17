@@ -5,6 +5,7 @@ import {
   type IndexerData,
   type AllocationData,
 } from "../utils/subgraph";
+import { resolveEnsNames } from "../utils/ens";
 import {
   calculateWindowStats,
   weiToGrt,
@@ -31,11 +32,17 @@ export function useIndexerData() {
     setData(null);
 
     try {
-      const indexer = await fetchIndexer(address);
+      const [indexer, ensNames] = await Promise.all([
+        fetchIndexer(address),
+        resolveEnsNames([address]),
+      ]);
+
       if (!indexer) {
-        setError("Indexer not found");
+        setError("Indexer not found. Make sure the address is correct and has active allocations.");
         return;
       }
+
+      indexer.ensName = ensNames.get(address.toLowerCase());
 
       const now = Math.floor(Date.now() / 1000);
       const sinceTimestamp = now - 90 * 86400;

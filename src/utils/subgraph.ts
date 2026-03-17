@@ -20,6 +20,16 @@ export async function querySubgraph<T>(
   return json.data as T;
 }
 
+export interface IndexerSummary {
+  id: string;
+  delegatedTokens: string;
+  stakedTokens: string;
+  allocatedTokens: string;
+  indexingRewardCut: number;
+  allocationCount: number;
+  ensName?: string;
+}
+
 export interface IndexerData {
   id: string;
   stakedTokens: string;
@@ -33,6 +43,7 @@ export interface IndexerData {
   delegationExchangeRate: string;
   allocationCount: number;
   totalAllocationCount: string;
+  ensName?: string;
 }
 
 export interface AllocationData {
@@ -47,6 +58,37 @@ export interface AllocationData {
   subgraphDeployment: {
     id: string;
   };
+}
+
+export async function fetchIndexerList(): Promise<IndexerSummary[]> {
+  const allIndexers: IndexerSummary[] = [];
+  let skip = 0;
+
+  while (true) {
+    const { indexers } = await querySubgraph<{ indexers: IndexerSummary[] }>(`{
+      indexers(
+        first: 100
+        skip: ${skip}
+        orderBy: delegatedTokens
+        orderDirection: desc
+        where: { allocationCount_gt: 0, delegatedTokens_gt: "0" }
+      ) {
+        id
+        delegatedTokens
+        stakedTokens
+        allocatedTokens
+        indexingRewardCut
+        allocationCount
+      }
+    }`);
+
+    allIndexers.push(...indexers);
+    if (indexers.length < 100) break;
+    skip += 100;
+    if (skip >= 500) break; // cap at top 500
+  }
+
+  return allIndexers;
 }
 
 export async function fetchIndexer(address: string): Promise<IndexerData | null> {
