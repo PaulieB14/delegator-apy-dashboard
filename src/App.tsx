@@ -12,17 +12,7 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div className="logo-mark">
-          <svg viewBox="0 0 32 32" width="36" height="36" fill="none">
-            <circle cx="16" cy="16" r="15" stroke="url(#grad)" strokeWidth="2" />
-            <path d="M10 20l6-12 6 12" stroke="url(#grad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            <circle cx="16" cy="12" r="2" fill="url(#grad)" />
-            <defs>
-              <linearGradient id="grad" x1="0" y1="0" x2="32" y2="32">
-                <stop offset="0%" stopColor="#6366f1" />
-                <stop offset="100%" stopColor="#8b5cf6" />
-              </linearGradient>
-            </defs>
-          </svg>
+          <img src="/graph-logo.jpg" alt="Graph Protocol" className="logo-img" />
         </div>
         <h1>Delegator APY</h1>
         <p className="header-subtitle">

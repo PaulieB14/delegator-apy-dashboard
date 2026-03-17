@@ -15,7 +15,16 @@
 }
 
 .logo-mark {
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+.logo-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.4), 0 0 48px rgba(168, 85, 247, 0.2);
+  border: 2px solid rgba(129, 140, 248, 0.3);
 }
 
 .header-subtitle {
