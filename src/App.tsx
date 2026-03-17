@@ -1,4 +1,5 @@
-import { IndexerSelector } from "./components/IndexerSelector";
+import { useState } from "react";
+import { IndexerList } from "./components/IndexerList";
 import { IndexerOverview } from "./components/IndexerOverview";
 import { ApyTable } from "./components/ApyTable";
 import { AllocationsList } from "./components/AllocationsList";
@@ -7,6 +8,19 @@ import "./App.css";
 
 function App() {
   const { data, loading, error, load } = useIndexerData();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "detail">("list");
+
+  const handleSelect = (address: string) => {
+    setSelectedId(address);
+    setView("detail");
+    load(address);
+  };
+
+  const handleBack = () => {
+    setView("list");
+    setSelectedId(null);
+  };
 
   return (
     <div className="app">
@@ -21,32 +35,43 @@ function App() {
         <div className="header-badge">Graph Network Arbitrum</div>
       </header>
 
-      <IndexerSelector onSelect={load} loading={loading} />
-
-      {error && <div className="error">{error}</div>}
-
-      {loading && (
-        <div className="loading">
-          <span className="spinner large" />
-          <span>Fetching on-chain reward data...</span>
-        </div>
+      {view === "list" && (
+        <IndexerList onSelect={handleSelect} selectedId={selectedId} />
       )}
 
-      {data && (
-        <div className="results fade-in">
-          <section className="indexer-header">
-            <div className="indexer-name">
-              {data.indexer.ensName || `${data.indexer.id.slice(0, 10)}...${data.indexer.id.slice(-8)}`}
+      {view === "detail" && (
+        <div className="detail-view fade-in">
+          <button className="back-btn" onClick={handleBack}>
+            <span className="back-arrow">&#8249;</span>
+            Back to indexers
+          </button>
+
+          {error && <div className="error">{error}</div>}
+
+          {loading && (
+            <div className="loading">
+              <span className="spinner large" />
+              <span>Fetching on-chain reward data...</span>
             </div>
-            <code className="indexer-address">{data.indexer.id}</code>
-          </section>
-          <IndexerOverview data={data} />
-          <ApyTable windows={data.windows} delegatedGrt={data.delegatedGrt} />
-          <AllocationsList windows={data.windows} />
-          <footer className="app-footer">
-            Data sourced from closed allocations on the Graph Network Arbitrum subgraph.
-            Delegator rewards shown are post-cut (already reflect the indexer's reward cut).
-          </footer>
+          )}
+
+          {data && (
+            <>
+              <section className="indexer-header">
+                <div className="indexer-name">
+                  {data.indexer.ensName || `${data.indexer.id.slice(0, 10)}...${data.indexer.id.slice(-8)}`}
+                </div>
+                <code className="indexer-address">{data.indexer.id}</code>
+              </section>
+              <IndexerOverview data={data} />
+              <ApyTable windows={data.windows} delegatedGrt={data.delegatedGrt} />
+              <AllocationsList windows={data.windows} />
+              <footer className="app-footer">
+                Data sourced from closed allocations on the Graph Network Arbitrum subgraph.
+                Delegator rewards shown are post-cut (already reflect the indexer's reward cut).
+              </footer>
+            </>
+          )}
         </div>
       )}
     </div>
