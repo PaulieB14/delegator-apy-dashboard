@@ -1,4 +1,4 @@
-import type { AllocationData, AllocationSummary } from "./subgraph";
+import type { AllocationData, AllocationSummary, NetworkData, IndexerSummary } from "./subgraph";
 
 export function weiToGrt(wei: string): number {
   return Number(BigInt(wei)) / 1e18;
@@ -31,12 +31,45 @@ export interface IndexerApyData {
   apy30: number;
   apy60: number;
   apy90: number;
+  estApy: number; // estimated current APY from network params
   rewards30: number;
   rewards60: number;
   rewards90: number;
   allocs30: number;
   allocs60: number;
   allocs90: number;
+}
+
+// Estimated APY based on current network issuance rate
+// Similar to what Graph Explorer shows
+// Formula: (indexer_alloc / total_alloc) * annual_issuance * (1 - reward_cut) / delegated
+// Arbitrum block time ~0.25s
+const ARB_BLOCKS_PER_YEAR = (365.25 * 24 * 60 * 60) / 0.25;
+
+export function calculateEstimatedApy(
+  indexer: IndexerSummary,
+  network: NetworkData
+): number {
+  const totalAllocated = weiToGrt(network.totalTokensAllocated);
+  const issuancePerBlock = weiToGrt(network.networkGRTIssuancePerBlock);
+  const annualIssuance = issuancePerBlock * ARB_BLOCKS_PER_YEAR;
+
+  const indexerAllocated = weiToGrt(indexer.allocatedTokens);
+  const delegated = weiToGrt(indexer.delegatedTokens);
+  const staked = weiToGrt(indexer.stakedTokens);
+  const totalStake = delegated + staked;
+  const rewardCut = indexer.indexingRewardCut / 1_000_000;
+
+  if (totalAllocated <= 0 || delegated <= 0 || totalStake <= 0) return 0;
+
+  // Indexer's share of total network rewards
+  const indexerAnnualRewards = (indexerAllocated / totalAllocated) * annualIssuance;
+
+  // Delegator portion: (1 - rewardCut) * rewards * (delegated / totalStake)
+  const delegatorRewards =
+    indexerAnnualRewards * (1 - rewardCut) * (delegated / totalStake);
+
+  return (delegatorRewards / delegated) * 100;
 }
 
 export function calculateBulkApy(
@@ -86,6 +119,7 @@ export function calculateBulkApy(
       apy30: (d.r30 / delegated) * (365 / 30) * 100,
       apy60: (d.r60 / delegated) * (365 / 60) * 100,
       apy90: (d.r90 / delegated) * (365 / 90) * 100,
+      estApy: 0, // filled in later with network data
       rewards30: d.r30,
       rewards60: d.r60,
       rewards90: d.r90,

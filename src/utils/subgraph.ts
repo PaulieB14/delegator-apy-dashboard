@@ -156,6 +156,25 @@ export async function fetchIndexer(address: string): Promise<IndexerData | null>
   return indexer;
 }
 
+export interface NetworkData {
+  totalTokensAllocated: string;
+  totalDelegatedTokens: string;
+  networkGRTIssuancePerBlock: string;
+  totalSupply: string;
+}
+
+export async function fetchNetworkData(): Promise<NetworkData> {
+  const { graphNetwork } = await querySubgraph<{ graphNetwork: NetworkData }>(`{
+    graphNetwork(id: "1") {
+      totalTokensAllocated
+      totalDelegatedTokens
+      networkGRTIssuancePerBlock
+      totalSupply
+    }
+  }`);
+  return graphNetwork;
+}
+
 export async function fetchClosedAllocations(
   indexerAddress: string,
   sinceTimestamp: number

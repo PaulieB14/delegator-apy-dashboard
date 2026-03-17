@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   fetchIndexerList,
   fetchAllClosedAllocations,
+  fetchNetworkData,
   type IndexerSummary,
 } from "../utils/subgraph";
 import { resolveEnsNames } from "../utils/ens";
@@ -11,15 +12,29 @@ import {
   ppmToPercent,
   formatPct,
   calculateBulkApy,
+  calculateEstimatedApy,
   type IndexerApyData,
 } from "../utils/calculations";
+import {
+  getCached,
+  setCache,
+  getCacheAge,
+  formatCacheAge,
+  clearCache,
+} from "../utils/cache";
+
+interface CachedData {
+  indexers: IndexerSummary[];
+  apyData: Record<string, IndexerApyData>;
+  ensNames: Record<string, string>;
+}
 
 interface Props {
   onSelect: (address: string) => void;
   selectedId: string | null;
 }
 
-type SortCol = "delegated" | "cut" | "alloc" | "apy30" | "apy60" | "apy90";
+type SortCol = "delegated" | "cut" | "alloc" | "apy30" | "apy60" | "apy90" | "est";
 
 export function IndexerList({ onSelect, selectedId }: Props) {
   const [indexers, setIndexers] = useState<IndexerSummary[]>([]);
@@ -31,11 +46,23 @@ export function IndexerList({ onSelect, selectedId }: Props) {
   const [ensLoading, setEnsLoading] = useState(false);
   const [sortBy, setSortBy] = useState<SortCol>("apy30");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [cacheAge, setCacheAge] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadData() {
+      // Check cache first
+      const cached = getCached<CachedData>("indexer_list");
+      if (cached) {
+        setIndexers(cached.indexers);
+        setApyData(new Map(Object.entries(cached.apyData)));
+        setEnsNames(new Map(Object.entries(cached.ensNames)));
+        setListLoading(false);
+        setCacheAge(getCacheAge("indexer_list"));
+        return;
+      }
+
       try {
         // Step 1: Load indexer list
         const list = await fetchIndexerList();
@@ -43,7 +70,7 @@ export function IndexerList({ onSelect, selectedId }: Props) {
         setIndexers(list);
         setListLoading(false);
 
-        // Step 2: Load bulk allocations for APY (in parallel with ENS)
+        // Step 2: Load bulk allocations + ENS + network data in parallel
         setApyLoading(true);
         setEnsLoading(true);
 
@@ -55,19 +82,47 @@ export function IndexerList({ onSelect, selectedId }: Props) {
           delegatedMap.set(idx.id.toLowerCase(), weiToGrt(idx.delegatedTokens));
         }
 
-        const [allocs, names] = await Promise.all([
+        const [allocs, names, network] = await Promise.all([
           fetchAllClosedAllocations(since90),
           resolveEnsNames(list.map((i) => i.id)),
+          fetchNetworkData(),
         ]);
 
         if (cancelled) return;
 
+        // Calculate actual APY from allocations
         const apy = calculateBulkApy(allocs, delegatedMap, now);
+
+        // Add estimated APY for each indexer
+        for (const idx of list) {
+          const id = idx.id.toLowerCase();
+          const existing = apy.get(id);
+          const estApy = calculateEstimatedApy(idx, network);
+          if (existing) {
+            existing.estApy = estApy;
+          } else {
+            apy.set(id, {
+              apy30: 0, apy60: 0, apy90: 0,
+              rewards30: 0, rewards60: 0, rewards90: 0,
+              allocs30: 0, allocs60: 0, allocs90: 0,
+              estApy,
+            });
+          }
+        }
+
         setApyData(apy);
         setApyLoading(false);
-
         setEnsNames(names);
         setEnsLoading(false);
+
+        // Cache the result
+        const cachePayload: CachedData = {
+          indexers: list,
+          apyData: Object.fromEntries(apy),
+          ensNames: Object.fromEntries(names),
+        };
+        setCache("indexer_list", cachePayload);
+        setCacheAge(0);
       } catch {
         if (!cancelled) {
           setListLoading(false);
@@ -80,6 +135,18 @@ export function IndexerList({ onSelect, selectedId }: Props) {
     loadData();
     return () => { cancelled = true; };
   }, []);
+
+  const handleRefresh = () => {
+    clearCache();
+    setCacheAge(null);
+    setListLoading(true);
+    setApyLoading(false);
+    setEnsLoading(false);
+    setApyData(new Map());
+    setEnsNames(new Map());
+    // Re-trigger effect
+    window.location.reload();
+  };
 
   const filtered = useMemo(() => {
     let list = indexers;
@@ -114,6 +181,9 @@ export function IndexerList({ onSelect, selectedId }: Props) {
           break;
         case "apy90":
           diff = (aApy?.apy90 || 0) - (bApy?.apy90 || 0);
+          break;
+        case "est":
+          diff = (aApy?.estApy || 0) - (bApy?.estApy || 0);
           break;
       }
       return sortDir === "desc" ? -diff : diff;
@@ -160,7 +230,17 @@ export function IndexerList({ onSelect, selectedId }: Props) {
           {ensLoading && <span className="ens-badge">resolving ENS...</span>}
           {apyLoading && <span className="ens-badge apy-badge">calculating APY...</span>}
         </div>
-        <span className="list-count">{filtered.length} indexers</span>
+        <div className="list-toolbar-right">
+          {cacheAge !== null && (
+            <span className="cache-info">
+              {cacheAge === 0 ? "Just updated" : `Cached ${formatCacheAge(cacheAge)}`}
+            </span>
+          )}
+          <button className="refresh-btn" onClick={handleRefresh} title="Force refresh data">
+            &#8635;
+          </button>
+          <span className="list-count">{filtered.length} indexers</span>
+        </div>
       </div>
 
       <div className="list-table-wrapper">
@@ -175,14 +255,17 @@ export function IndexerList({ onSelect, selectedId }: Props) {
               <th className="list-th-sortable" onClick={() => handleSort("cut")}>
                 Cut{sortIcon("cut")}
               </th>
+              <th className="list-th-sortable list-th-apy" onClick={() => handleSort("est")}>
+                Est. APY{sortIcon("est")}
+              </th>
               <th className="list-th-sortable list-th-apy" onClick={() => handleSort("apy30")}>
-                30d APY{sortIcon("apy30")}
+                30d{sortIcon("apy30")}
               </th>
               <th className="list-th-sortable list-th-apy" onClick={() => handleSort("apy60")}>
-                60d APY{sortIcon("apy60")}
+                60d{sortIcon("apy60")}
               </th>
               <th className="list-th-sortable list-th-apy" onClick={() => handleSort("apy90")}>
-                90d APY{sortIcon("apy90")}
+                90d{sortIcon("apy90")}
               </th>
               <th className="list-th-sortable hide-mobile" onClick={() => handleSort("alloc")}>
                 Alloc{sortIcon("alloc")}
@@ -225,6 +308,15 @@ export function IndexerList({ onSelect, selectedId }: Props) {
                     {apyLoading ? (
                       <span className="apy-placeholder">...</span>
                     ) : apy ? (
+                      <span className="apy-cell est">{formatPct(apy.estApy)}</span>
+                    ) : (
+                      <span className="apy-placeholder">-</span>
+                    )}
+                  </td>
+                  <td className="list-td-apy">
+                    {apyLoading ? (
+                      <span className="apy-placeholder">...</span>
+                    ) : apy ? (
                       <span className="apy-cell">{formatPct(apy.apy30)}</span>
                     ) : (
                       <span className="apy-placeholder">-</span>
@@ -260,8 +352,9 @@ export function IndexerList({ onSelect, selectedId }: Props) {
       </div>
 
       <div className="list-footer">
-        APY calculated from actual delegator rewards on closed allocations.
-        Uses current delegation as denominator — may differ if delegation changed significantly during the period.
+        <strong>Est. APY</strong> = projected from current network issuance &amp; allocation share.
+        <strong>30/60/90d</strong> = actual delegator rewards from closed allocations.
+        Data cached for 24h — click refresh to update.
       </div>
     </div>
   );
