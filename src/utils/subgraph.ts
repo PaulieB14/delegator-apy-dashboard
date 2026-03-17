@@ -29,15 +29,24 @@ export async function querySubgraph<T>(
   return json.data as T;
 }
 
+export interface ActiveAllocationSummary {
+  allocatedTokens: string;
+  subgraphDeployment: {
+    id: string;
+    stakedTokens: string;
+    signalledTokens: string;
+    deniedAt: number | null;
+  };
+}
+
 export interface IndexerSummary {
   id: string;
   delegatedTokens: string;
   stakedTokens: string;
   allocatedTokens: string;
   indexingRewardCut: number;
-  indexingRewardEffectiveCut: string;
-  overDelegationDilution: string;
   allocationCount: number;
+  allocations: ActiveAllocationSummary[];
   ensName?: string;
 }
 
@@ -97,9 +106,16 @@ export async function fetchIndexerList(): Promise<IndexerSummary[]> {
         stakedTokens
         allocatedTokens
         indexingRewardCut
-        indexingRewardEffectiveCut
-        overDelegationDilution
         allocationCount
+        allocations(first: 1000, orderBy: allocatedTokens, orderDirection: desc, where: {status: Active}) {
+          allocatedTokens
+          subgraphDeployment {
+            id
+            stakedTokens
+            signalledTokens
+            deniedAt
+          }
+        }
       }
     }`);
 
@@ -172,6 +188,7 @@ export async function fetchIndexer(address: string): Promise<IndexerData | null>
 export interface NetworkData {
   totalTokensAllocated: string;
   totalDelegatedTokens: string;
+  totalTokensSignalled: string;
   networkGRTIssuancePerBlock: string;
   totalSupply: string;
   delegationRatio: number;
@@ -182,6 +199,7 @@ export async function fetchNetworkData(): Promise<NetworkData> {
     graphNetwork(id: "1") {
       totalTokensAllocated
       totalDelegatedTokens
+      totalTokensSignalled
       networkGRTIssuancePerBlock
       totalSupply
       delegationRatio

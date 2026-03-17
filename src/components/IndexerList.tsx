@@ -276,7 +276,7 @@ export function IndexerList({ onSelect, selectedId }: Props) {
                 Cut{sortIcon("cut")}
               </th>
               <th className="list-th-sortable list-th-apy" onClick={() => handleSort("est")}>
-                Est. APY{sortIcon("est")}
+                Est. APR{sortIcon("est")}
               </th>
               <th className="list-th-sortable list-th-apy" onClick={() => handleSort("apy30")}>
                 30d{sortIcon("apy30")}
@@ -372,9 +372,9 @@ export function IndexerList({ onSelect, selectedId }: Props) {
       </div>
 
       <div className="list-footer">
-        <strong>Est. APY</strong> = projected from current network issuance &amp; allocation share.
+        <strong>Est. APR</strong> = projected from current network issuance, signal, &amp; allocation share.
         <strong>30/60/90d</strong> = actual delegator rewards from closed allocations.
-        Data updated daily via GitHub Actions — click refresh to force live reload.
+        Data is a daily snapshot — click refresh to force live reload.
       </div>
     </div>
   );

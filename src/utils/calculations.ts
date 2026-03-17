@@ -40,43 +40,50 @@ export interface IndexerApyData {
   allocs90: number;
 }
 
-// Estimated APY using subgraph pre-computed fields (indexingRewardEffectiveCut, overDelegationDilution)
-// Issuance is per L1 Ethereum block (~12s), not per Arbitrum block
-const ETH_BLOCKS_PER_YEAR = (365.25 * 24 * 60 * 60) / 12;
+// Estimated APR using signal-weighted per-allocation rewards
+// Matches the Graphtronauts formula: for each active allocation,
+// dailyRewards = issuancePerDay * (deploymentSignal / totalSignal) * (allocTokens / deploymentStaked)
+// Then: delegatorAPR = (1 - cut) * sumDailyRewards / delegated * 365 * 100
+const BLOCKS_PER_DAY_ETHEREUM = 7200; // 86400s / 12s
 
 export function calculateEstimatedApy(
   indexer: IndexerSummary,
   network: NetworkData
 ): number {
-  const totalAllocated = weiToGrt(network.totalTokensAllocated);
-  const issuancePerBlock = weiToGrt(network.networkGRTIssuancePerBlock);
-  const annualIssuance = issuancePerBlock * ETH_BLOCKS_PER_YEAR;
+  if (!indexer.allocations?.length) return 0;
 
-  const indexerAllocated = weiToGrt(indexer.allocatedTokens);
-  const delegated = weiToGrt(indexer.delegatedTokens);
-  const staked = weiToGrt(indexer.stakedTokens);
-  const totalStake = delegated + staked;
+  const delegated = Number(BigInt(indexer.delegatedTokens)) / 1e18;
+  if (delegated <= 0) return 0;
 
-  // Use subgraph pre-computed effective cut and overdelegation dilution
-  const effectiveCut = parseFloat(indexer.indexingRewardEffectiveCut) || 0;
-  const dilution = parseFloat(indexer.overDelegationDilution) || 0;
+  const issuancePerBlock = Number(BigInt(network.networkGRTIssuancePerBlock)) / 1e18;
+  const dailyIssuance = issuancePerBlock * BLOCKS_PER_DAY_ETHEREUM;
+  const totalSignal = Number(BigInt(network.totalTokensSignalled)) / 1e18;
+  const rewardCut = indexer.indexingRewardCut / 1_000_000;
 
-  if (totalAllocated <= 0 || delegated <= 0 || totalStake <= 0) return 0;
+  if (totalSignal <= 0) return 0;
 
-  // Cap delegated tokens at delegation ratio * staked (only this much earns rewards)
-  const maxDelegation = staked * network.delegationRatio;
-  const effectiveDelegated = Math.min(delegated, maxDelegation);
+  // Sum daily rewards across all active allocations (signal-weighted)
+  let totalDailyRewards = 0;
+  for (const alloc of indexer.allocations) {
+    if (alloc.subgraphDeployment.deniedAt || alloc.allocatedTokens === "0") continue;
 
-  // Indexer's share of total network rewards
-  const indexerAnnualRewards = (indexerAllocated / totalAllocated) * annualIssuance;
+    const allocTokens = Number(BigInt(alloc.allocatedTokens)) / 1e18;
+    const deploymentStaked = Number(BigInt(alloc.subgraphDeployment.stakedTokens)) / 1e18;
+    const deploymentSignal = Number(BigInt(alloc.subgraphDeployment.signalledTokens)) / 1e18;
 
-  // Delegator portion of rewards using subgraph's effective cut
-  const delegatorShareOfStake = effectiveDelegated / totalStake;
-  const delegatorRewards =
-    indexerAnnualRewards * delegatorShareOfStake * (1 - effectiveCut) * (1 - dilution);
+    if (deploymentStaked <= 0) continue;
 
-  // APY relative to actual delegated (not effective), since that's what delegator holds
-  return (delegatorRewards / delegated) * 100;
+    const signalRatio = deploymentSignal / totalSignal;
+    const stakeRatio = allocTokens / deploymentStaked;
+    totalDailyRewards += dailyIssuance * signalRatio * stakeRatio;
+  }
+
+  // Delegator daily rewards = (1 - cut) * total daily rewards
+  const delegatorDailyRewards = (1 - rewardCut) * totalDailyRewards;
+
+  // APR = delegator daily / delegated * 365 * 100
+  const apr = (delegatorDailyRewards / delegated) * 365 * 100;
+  return apr < 0 || isNaN(apr) ? 0 : apr;
 }
 
 export function calculateBulkApy(
