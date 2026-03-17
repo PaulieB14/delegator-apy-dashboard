@@ -1,5 +1,12 @@
+declare const process: { env?: Record<string, string | undefined> } | undefined;
+
+function getEnv(key: string): string {
+  if (typeof process !== "undefined" && process?.env?.[key]) return process.env[key]!;
+  try { return (import.meta as any).env?.[key] || ""; } catch { return ""; }
+}
+
 const ENS_SUBGRAPH_ID = "5XqPmWe6gjyrJtFn9cLy237i4cWw2j9HcUJEXsP5qGtH";
-const API_KEY = import.meta.env.VITE_GRAPH_API_KEY || "";
+const API_KEY = getEnv("VITE_GRAPH_API_KEY");
 const ENS_URL = API_KEY
   ? `https://gateway.thegraph.com/api/${API_KEY}/subgraphs/id/${ENS_SUBGRAPH_ID}`
   : `https://gateway.thegraph.com/api/subgraphs/id/${ENS_SUBGRAPH_ID}`;

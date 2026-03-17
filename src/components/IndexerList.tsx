@@ -51,8 +51,29 @@ export function IndexerList({ onSelect, selectedId }: Props) {
   useEffect(() => {
     let cancelled = false;
 
+    async function loadFromStatic(): Promise<boolean> {
+      try {
+        const res = await fetch("/data.json");
+        if (!res.ok) return false;
+        const payload = await res.json();
+        if (!payload.indexers || !payload.apyData) return false;
+        if (cancelled) return true;
+        setIndexers(payload.indexers);
+        setApyData(new Map(Object.entries(payload.apyData)));
+        setEnsNames(new Map(Object.entries(payload.ensNames || {})));
+        setListLoading(false);
+        // Show age based on updatedAt
+        if (payload.updatedAt) {
+          setCacheAge(Date.now() - new Date(payload.updatedAt).getTime());
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
     async function loadData() {
-      // Check cache first
+      // Check localStorage cache first
       const cached = getCached<CachedData>("indexer_list");
       if (cached) {
         setIndexers(cached.indexers);
@@ -63,14 +84,16 @@ export function IndexerList({ onSelect, selectedId }: Props) {
         return;
       }
 
+      // Try pre-computed static data
+      if (await loadFromStatic()) return;
+
+      // Fallback: live subgraph queries
       try {
-        // Step 1: Load indexer list
         const list = await fetchIndexerList();
         if (cancelled) return;
         setIndexers(list);
         setListLoading(false);
 
-        // Step 2: Load bulk allocations + ENS + network data in parallel
         setApyLoading(true);
         setEnsLoading(true);
 
@@ -90,10 +113,8 @@ export function IndexerList({ onSelect, selectedId }: Props) {
 
         if (cancelled) return;
 
-        // Calculate actual APY from allocations
         const apy = calculateBulkApy(allocs, delegatedMap, now);
 
-        // Add estimated APY for each indexer
         for (const idx of list) {
           const id = idx.id.toLowerCase();
           const existing = apy.get(id);
@@ -115,7 +136,6 @@ export function IndexerList({ onSelect, selectedId }: Props) {
         setEnsNames(names);
         setEnsLoading(false);
 
-        // Cache the result
         const cachePayload: CachedData = {
           indexers: list,
           apyData: Object.fromEntries(apy),
@@ -354,7 +374,7 @@ export function IndexerList({ onSelect, selectedId }: Props) {
       <div className="list-footer">
         <strong>Est. APY</strong> = projected from current network issuance &amp; allocation share.
         <strong>30/60/90d</strong> = actual delegator rewards from closed allocations.
-        Data cached for 24h — click refresh to update.
+        Data updated daily via GitHub Actions — click refresh to force live reload.
       </div>
     </div>
   );

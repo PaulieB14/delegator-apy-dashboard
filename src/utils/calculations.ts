@@ -40,11 +40,9 @@ export interface IndexerApyData {
   allocs90: number;
 }
 
-// Estimated APY based on current network issuance rate
-// Similar to what Graph Explorer shows
-// Formula: (indexer_alloc / total_alloc) * annual_issuance * (1 - reward_cut) / delegated
-// Arbitrum block time ~0.25s
-const ARB_BLOCKS_PER_YEAR = (365.25 * 24 * 60 * 60) / 0.25;
+// Estimated APY using subgraph pre-computed fields (indexingRewardEffectiveCut, overDelegationDilution)
+// Issuance is per L1 Ethereum block (~12s), not per Arbitrum block
+const ETH_BLOCKS_PER_YEAR = (365.25 * 24 * 60 * 60) / 12;
 
 export function calculateEstimatedApy(
   indexer: IndexerSummary,
@@ -52,23 +50,32 @@ export function calculateEstimatedApy(
 ): number {
   const totalAllocated = weiToGrt(network.totalTokensAllocated);
   const issuancePerBlock = weiToGrt(network.networkGRTIssuancePerBlock);
-  const annualIssuance = issuancePerBlock * ARB_BLOCKS_PER_YEAR;
+  const annualIssuance = issuancePerBlock * ETH_BLOCKS_PER_YEAR;
 
   const indexerAllocated = weiToGrt(indexer.allocatedTokens);
   const delegated = weiToGrt(indexer.delegatedTokens);
   const staked = weiToGrt(indexer.stakedTokens);
   const totalStake = delegated + staked;
-  const rewardCut = indexer.indexingRewardCut / 1_000_000;
+
+  // Use subgraph pre-computed effective cut and overdelegation dilution
+  const effectiveCut = parseFloat(indexer.indexingRewardEffectiveCut) || 0;
+  const dilution = parseFloat(indexer.overDelegationDilution) || 0;
 
   if (totalAllocated <= 0 || delegated <= 0 || totalStake <= 0) return 0;
+
+  // Cap delegated tokens at delegation ratio * staked (only this much earns rewards)
+  const maxDelegation = staked * network.delegationRatio;
+  const effectiveDelegated = Math.min(delegated, maxDelegation);
 
   // Indexer's share of total network rewards
   const indexerAnnualRewards = (indexerAllocated / totalAllocated) * annualIssuance;
 
-  // Delegator portion: (1 - rewardCut) * rewards * (delegated / totalStake)
+  // Delegator portion of rewards using subgraph's effective cut
+  const delegatorShareOfStake = effectiveDelegated / totalStake;
   const delegatorRewards =
-    indexerAnnualRewards * (1 - rewardCut) * (delegated / totalStake);
+    indexerAnnualRewards * delegatorShareOfStake * (1 - effectiveCut) * (1 - dilution);
 
+  // APY relative to actual delegated (not effective), since that's what delegator holds
   return (delegatorRewards / delegated) * 100;
 }
 

@@ -1,5 +1,14 @@
-const SUBGRAPH_ID = import.meta.env.VITE_SUBGRAPH_ID || "";
-const API_KEY = import.meta.env.VITE_GRAPH_API_KEY || "";
+declare const process: { env?: Record<string, string | undefined> } | undefined;
+
+function getEnv(key: string): string {
+  // Node.js (scripts)
+  if (typeof process !== "undefined" && process?.env?.[key]) return process.env[key]!;
+  // Vite (browser)
+  try { return (import.meta as any).env?.[key] || ""; } catch { return ""; }
+}
+
+const SUBGRAPH_ID = getEnv("VITE_SUBGRAPH_ID");
+const API_KEY = getEnv("VITE_GRAPH_API_KEY");
 const SUBGRAPH_URL = API_KEY
   ? `https://gateway.thegraph.com/api/${API_KEY}/subgraphs/id/${SUBGRAPH_ID}`
   : `https://gateway.thegraph.com/api/subgraphs/id/${SUBGRAPH_ID}`;
@@ -26,6 +35,8 @@ export interface IndexerSummary {
   stakedTokens: string;
   allocatedTokens: string;
   indexingRewardCut: number;
+  indexingRewardEffectiveCut: string;
+  overDelegationDilution: string;
   allocationCount: number;
   ensName?: string;
 }
@@ -86,6 +97,8 @@ export async function fetchIndexerList(): Promise<IndexerSummary[]> {
         stakedTokens
         allocatedTokens
         indexingRewardCut
+        indexingRewardEffectiveCut
+        overDelegationDilution
         allocationCount
       }
     }`);
@@ -161,6 +174,7 @@ export interface NetworkData {
   totalDelegatedTokens: string;
   networkGRTIssuancePerBlock: string;
   totalSupply: string;
+  delegationRatio: number;
 }
 
 export async function fetchNetworkData(): Promise<NetworkData> {
@@ -170,6 +184,7 @@ export async function fetchNetworkData(): Promise<NetworkData> {
       totalDelegatedTokens
       networkGRTIssuancePerBlock
       totalSupply
+      delegationRatio
     }
   }`);
   return graphNetwork;
