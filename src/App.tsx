@@ -3,13 +3,14 @@ import { IndexerList } from "./components/IndexerList";
 import { IndexerOverview } from "./components/IndexerOverview";
 import { ApyTable } from "./components/ApyTable";
 import { AllocationsList } from "./components/AllocationsList";
+import { RewardSimulator } from "./components/RewardSimulator";
 import { useIndexerData } from "./hooks/useIndexerData";
 import "./App.css";
 
 function App() {
   const { data, loading, error, load } = useIndexerData();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<"list" | "detail">("list");
+  const [view, setView] = useState<"list" | "detail" | "simulator">("list");
 
   const handleSelect = (address: string) => {
     setSelectedId(address);
@@ -33,11 +34,30 @@ function App() {
           Real delegator returns from on-chain data
         </p>
         <div className="header-badge">Graph Network Arbitrum</div>
+
+        {view !== "detail" && (
+          <div className="view-tabs">
+            <button
+              className={`view-tab ${view === "list" ? "active" : ""}`}
+              onClick={() => setView("list")}
+            >
+              Indexers
+            </button>
+            <button
+              className={`view-tab ${view === "simulator" ? "active" : ""}`}
+              onClick={() => setView("simulator")}
+            >
+              Reward Simulator
+            </button>
+          </div>
+        )}
       </header>
 
       {view === "list" && (
         <IndexerList onSelect={handleSelect} selectedId={selectedId} />
       )}
+
+      {view === "simulator" && <RewardSimulator />}
 
       {view === "detail" && (
         <div className="detail-view fade-in">

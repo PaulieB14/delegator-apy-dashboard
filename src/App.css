@@ -643,4 +643,347 @@
   .list-td-apy {
     font-size: 11px;
   }
+
+  .simulator-inputs {
+    flex-direction: column;
+  }
+
+  .simulator-summary {
+    flex-direction: column;
+  }
+}
+
+/* ── View Tabs ── */
+.view-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.view-tab {
+  padding: 8px 20px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.view-tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.view-tab.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+/* ── Reward Simulator ── */
+.simulator-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.simulator-header {
+  padding: 24px 24px 0;
+}
+
+.simulator-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0 0 4px;
+}
+
+.simulator-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.simulator-disclaimer {
+  margin: 16px 24px;
+  padding: 12px 16px;
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.15);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--yellow);
+  line-height: 1.5;
+}
+
+.simulator-inputs {
+  display: flex;
+  gap: 20px;
+  padding: 0 24px 20px;
+  align-items: flex-start;
+}
+
+.simulator-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.simulator-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.simulator-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.simulator-input-wrapper:focus-within {
+  border-color: var(--accent);
+}
+
+.simulator-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  color: var(--text-h);
+  font-size: 16px;
+  font-family: var(--mono);
+  outline: none;
+}
+
+.simulator-input::placeholder {
+  color: var(--text-muted);
+}
+
+.simulator-input-suffix {
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--bg-card-alt);
+  border-left: 1px solid var(--border);
+}
+
+.simulator-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.simulator-preset {
+  padding: 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.simulator-preset:hover {
+  border-color: var(--accent);
+  color: var(--accent-light);
+  background: var(--accent-glow);
+}
+
+.simulator-period-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.simulator-period-btn {
+  padding: 8px 18px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.simulator-period-btn:hover {
+  border-color: var(--border-light);
+  color: var(--text);
+}
+
+.simulator-period-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.simulator-summary {
+  display: flex;
+  gap: 16px;
+  padding: 0 24px 20px;
+}
+
+.simulator-summary-item {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.simulator-summary-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.simulator-summary-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-family: var(--mono);
+}
+
+.reward-highlight {
+  color: var(--green) !important;
+}
+
+.simulator-table-wrapper {
+  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.simulator-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.simulator-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-card);
+}
+
+.simulator-table th {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.sim-th-rank {
+  width: 40px;
+  text-align: center !important;
+}
+
+.sim-th-right {
+  text-align: right !important;
+}
+
+.sim-row {
+  border-bottom: 1px solid rgba(39, 39, 42, 0.3);
+  transition: background 0.1s;
+}
+
+.sim-row:hover {
+  background: var(--bg-hover);
+}
+
+.sim-td-rank {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 10px 14px;
+}
+
+.sim-td-name {
+  padding: 10px 14px;
+}
+
+.sim-name {
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+.sim-td-right {
+  padding: 10px 14px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sim-td-reward {
+  color: var(--green) !important;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.sim-td-apy {
+  color: var(--green) !important;
+  font-weight: 600;
+}
+
+.sim-td-est {
+  color: var(--accent-light) !important;
+  font-style: italic;
+}
+
+.simulator-show-more {
+  width: 100%;
+  padding: 14px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--accent-light);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.simulator-show-more:hover {
+  background: var(--bg-hover);
+  color: var(--text-h);
+}
+
+.simulator-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
 }
