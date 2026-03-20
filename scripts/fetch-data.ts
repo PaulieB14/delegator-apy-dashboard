@@ -16,7 +16,13 @@ import {
 
 async function main() {
   console.log("Fetching indexer list...");
-  const indexers = await fetchIndexerList();
+  let indexers;
+  try {
+    indexers = await fetchIndexerList();
+  } catch (err) {
+    console.error("Failed to fetch indexer list:", err);
+    throw err;
+  }
   console.log(`Found ${indexers.length} indexers`);
 
   const now = Math.floor(Date.now() / 1000);
@@ -28,11 +34,28 @@ async function main() {
   }
 
   console.log("Fetching allocations, ENS names, and network data...");
-  const [allocs, ensNames, network] = await Promise.all([
+  const [allocsResult, ensResult, networkResult] = await Promise.allSettled([
     fetchAllClosedAllocations(since90),
     resolveEnsNames(indexers.map((i) => i.id)),
     fetchNetworkData(),
   ]);
+
+  if (allocsResult.status === "rejected") {
+    console.error("Failed to fetch allocations:", allocsResult.reason);
+    throw allocsResult.reason;
+  }
+  if (networkResult.status === "rejected") {
+    console.error("Failed to fetch network data:", networkResult.reason);
+    throw networkResult.reason;
+  }
+
+  const allocs = allocsResult.value;
+  const ensNames = ensResult.status === "fulfilled" ? ensResult.value : new Map<string, string>();
+  const network = networkResult.value;
+
+  if (ensResult.status === "rejected") {
+    console.warn("ENS resolution failed (non-fatal):", ensResult.reason);
+  }
   console.log(`Fetched ${allocs.length} closed allocations`);
 
   // Calculate APY

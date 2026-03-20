@@ -5,6 +5,9 @@ on:
     - cron: "0 6 * * *" # Daily at 6am UTC
   workflow_dispatch: # Allow manual trigger
 
+permissions:
+  contents: write
+
 jobs:
   fetch:
     runs-on: ubuntu-latest
@@ -13,7 +16,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci

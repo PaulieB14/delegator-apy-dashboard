@@ -13,16 +13,45 @@ const SUBGRAPH_URL = API_KEY
   ? `https://gateway.thegraph.com/api/${API_KEY}/subgraphs/id/${SUBGRAPH_ID}`
   : `https://gateway.thegraph.com/api/subgraphs/id/${SUBGRAPH_ID}`;
 
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = 3,
+  delayMs = 2000
+): Promise<Response> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const res = await fetch(url, options);
+    if (res.ok) return res;
+    const body = await res.text();
+    if (attempt < retries && (res.status >= 500 || res.status === 429)) {
+      console.warn(`Subgraph request failed (HTTP ${res.status}), retry ${attempt}/${retries}...`);
+      await new Promise((r) => setTimeout(r, delayMs * attempt));
+      continue;
+    }
+    throw new Error(`Subgraph HTTP ${res.status}: ${body.slice(0, 200)}`);
+  }
+  throw new Error("Subgraph request failed after retries");
+}
+
 export async function querySubgraph<T>(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<T> {
-  const res = await fetch(SUBGRAPH_URL, {
+  const res = await fetchWithRetry(SUBGRAPH_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
   });
-  const json = await res.json();
+  const text = await res.text();
+  if (!text) {
+    throw new Error("Subgraph returned empty response");
+  }
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Subgraph returned invalid JSON: ${text.slice(0, 200)}`);
+  }
   if (json.errors) {
     throw new Error(json.errors.map((e: { message: string }) => e.message).join(", "));
   }
